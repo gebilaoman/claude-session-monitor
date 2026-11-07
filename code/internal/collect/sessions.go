@@ -4,7 +4,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -41,24 +40,9 @@ func ScanProjects(root string) (projects []ProjectDisk, total int64, errs []stri
 }
 
 func scanProject(dir string) (pd ProjectDisk, err error) {
-	tops, err := os.ReadDir(dir)
+	pd.LatestMain, pd.Sessions, err = mainsOf(dir)
 	if err != nil {
 		return pd, err
-	}
-	var latestMainTime time.Time
-	for _, e := range tops {
-		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
-			continue
-		}
-		pd.Sessions++
-		info, err := e.Info()
-		if err != nil {
-			continue
-		}
-		if info.ModTime().After(latestMainTime) {
-			latestMainTime = info.ModTime()
-			pd.LatestMain = e.Name()
-		}
 	}
 	err = filepath.WalkDir(dir, func(_ string, d fs.DirEntry, werr error) error {
 		if werr != nil {

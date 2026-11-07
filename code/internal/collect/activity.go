@@ -15,11 +15,11 @@ const activityTailBytes = 64 * 1024
 // 无主会话或无可解析对话行时返回 ""。
 // 末尾若干行为元数据(api-request 等)时,向前回溯至最近一条对话记录。
 func ActivityOfProject(projectDir string) string {
-	pd, err := scanProject(projectDir)
-	if err != nil || pd.LatestMain == "" {
+	name, _, err := mainsOf(projectDir)
+	if err != nil || name == "" {
 		return ""
 	}
-	f, err := os.Open(filepath.Join(projectDir, pd.LatestMain))
+	f, err := os.Open(filepath.Join(projectDir, name))
 	if err != nil {
 		return ""
 	}
@@ -35,6 +35,31 @@ func ActivityOfProject(projectDir string) string {
 		}
 	}
 	return ""
+}
+
+// mainsOf 统计项目顶层主会话: 返回最新的 jsonl 文件名与总数。
+// 只读顶层目录项,不做递归 walk,适配高频调用。
+func mainsOf(projectDir string) (latest string, count int, err error) {
+	tops, err := os.ReadDir(projectDir)
+	if err != nil {
+		return "", 0, err
+	}
+	var latestTime time.Time
+	for _, e := range tops {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".jsonl") {
+			continue
+		}
+		count++
+		info, ierr := e.Info()
+		if ierr != nil {
+			continue
+		}
+		if info.ModTime().After(latestTime) {
+			latestTime = info.ModTime()
+			latest = e.Name()
+		}
+	}
+	return latest, count, nil
 }
 
 func tailBytes(f *os.File, n int64) []byte {

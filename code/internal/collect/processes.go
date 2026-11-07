@@ -98,3 +98,14 @@ func sessionIDFromArgv(argv []string) string {
 	}
 	return ""
 }
+
+// DisplayName 项目显示名: cwd 末段;取不到回退 --resume 的 id 或 -。
+func (p Proc) DisplayName() string {
+	if p.ProjectDir != "" {
+		return filepath.Base(p.ProjectDir)
+	}
+	if p.SessionID != "" {
+		return p.SessionID
+	}
+	return "-"
+}
