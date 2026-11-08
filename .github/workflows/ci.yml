@@ -1,0 +1,28 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, macos-13, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: code/go.mod
+          cache-dependency-path: code/go.sum
+      - name: Vet
+        run: go vet ./...
+        working-directory: code
+      - name: Test
+        run: go test ./...
+        working-directory: code
+      - name: Build
+        run: go build ./...
+        working-directory: code

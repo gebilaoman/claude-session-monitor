@@ -42,7 +42,15 @@ type Model struct {
 	diskErrs  []string
 	errStreak int // 进程采集连续失败次数;>=3 时状态栏报错
 
+	updateAvailable string // 新版本提示,如 "v0.2.0";空串为无
+	wantUpdate      bool   // 用户按 u 请求更新(退出后由 main 执行)
+
 	updated time.Time
+}
+
+// UpdateMsg 启动检测的结果,由 main 异步注入。
+type UpdateMsg struct {
+	Version string // 新版本号;检测失败为 ""
 }
 
 // New 装配 TUI。刷新间隔下限 1 秒。
@@ -134,6 +142,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, diskTickAfter(time.Duration(m.cfg.RefreshDiskSec)*time.Second, m.root)
 
+	case UpdateMsg:
+		if msg.Version != "" {
+			m.updateAvailable = msg.Version
+		}
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
@@ -142,6 +155,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			if m.detail {
 				m.detail, m.cur = false, 0
+			}
+		case "u":
+			if m.updateAvailable != "" {
+				m.wantUpdate = true
+				m.quitting = true
+				return m, tea.Quit
 			}
 		case "enter", "ctrl+j": // ICRNL 环境下 Enter 到达为 \n(ctrl+j)
 			if !m.detail && m.tab == tabProcs && len(m.procs) > 0 {
@@ -212,3 +231,6 @@ func (m Model) rowCount() int {
 	}
 	return len(m.procs)
 }
+
+// WantUpdate 用户是否在 TUI 内按 u 请求更新(由 main 在退出后执行)。
+func (m Model) WantUpdate() bool { return m.wantUpdate }

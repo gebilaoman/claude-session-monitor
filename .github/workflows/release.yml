@@ -1,0 +1,58 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: code/go.mod
+          cache-dependency-path: code/go.sum
+
+      - name: Test
+        run: go test ./...
+        working-directory: code
+
+      # 产物命名与 internal/update(go-selfupdate)约定一致:
+      # cstop_<version>_<os>_<arch>.tar.gz(Windows 用 .zip),归档内二进制名为 cstop。
+      - name: Build all targets
+        working-directory: code
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist build
+          for t in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
+            os="${t%/*}"; arch="${t#*/}"
+            ext=""; [ "$os" = "windows" ] && ext=".exe"
+            name="cstop_${VERSION}_${os}_${arch}"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
+              -ldflags "-s -w -X main.version=${VERSION}" \
+              -o "build/cstop${ext}" ./cmd/cstop
+            if [ "$os" = "windows" ]; then
+              (cd build && tar -caf "../dist/${name}.zip" "cstop${ext}")
+            else
+              (cd build && tar -czf "../dist/${name}.tar.gz" "cstop${ext}")
+            fi
+            rm -f "build/cstop${ext}"
+          done
+          (cd dist && sha256sum *.tar.gz *.zip > checksums.txt)
+          ls -la dist
+
+      # 发布后自检: 下载本平台产物并校验 checksum(设计文档 7)。
+      - name: Verify release assets
+        working-directory: code/dist
+        run: |
+          sha256sum --check checksums.txt
+          tar -xzf cstop_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz
+          ./cstop --version
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: code/dist/*
+          generate_release_notes: true

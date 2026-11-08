@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"cstop/internal/collect"
 	"cstop/internal/config"
 	"cstop/internal/ui"
+	"cstop/internal/update"
 )
 
 // version 由构建注入(CI ldflags -X main.version=<tag>);本地构建为 dev。
@@ -29,6 +31,21 @@ func main() {
 
 	if *showVersion {
 		fmt.Println("cstop " + version)
+		return
+	}
+
+	// 子命令: cstop update
+	if len(flag.Args()) > 0 && flag.Args()[0] == "update" {
+		if version == "dev" {
+			fmt.Fprintln(os.Stderr, "本地构建无版本号,无法检测更新;请用 brew 或发布包安装的版本")
+			os.Exit(1)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		if err := update.Run(ctx, version); err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -67,9 +84,32 @@ func main() {
 			fmt.Println("配置: " + w)
 		}
 		p := tea.NewProgram(ui.New(cfg, root, os.Getpid()), tea.WithAltScreen())
-		if _, err := p.Run(); err != nil {
+
+		// 启动时后台检测新版本(3 秒超时,失败静默),结果注入 TUI。
+		if cfg.UpdateCheckOnStart && version != "dev" {
+			go func() {
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				defer cancel()
+				available, latest, err := update.Check(ctx, version)
+				if err == nil && available {
+					p.Send(ui.UpdateMsg{Version: latest})
+				}
+			}()
+		}
+
+		final, err := p.Run()
+		if err != nil {
 			fmt.Fprintln(os.Stderr, "TUI 启动失败: "+err.Error())
 			os.Exit(1)
+		}
+		// 用户在 TUI 内按 u: 退出后在此执行更新流程,进度直接可见。
+		if m, ok := final.(ui.Model); ok && m.WantUpdate() {
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer cancel()
+			if err := update.Run(ctx, version); err != nil {
+				fmt.Fprintln(os.Stderr, err.Error())
+				os.Exit(1)
+			}
 		}
 		return
 	}

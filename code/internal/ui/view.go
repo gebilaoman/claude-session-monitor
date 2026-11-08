@@ -76,6 +76,9 @@ func (m Model) statusLine() string {
 	if anyOver {
 		head += " " + styleOver.Render("⚠")
 	}
+	if m.updateAvailable != "" {
+		head += "  " + styleWarn.Render("新版本 v"+strings.TrimPrefix(m.updateAvailable, "v")+" 可用,按 u 更新")
+	}
 	return head + "  " + styleDim.Render(fmt.Sprintf("(%ds 刷新 · %s)",
 		m.cfg.RefreshProcsSec, m.updated.Format("15:04:05")))
 }
