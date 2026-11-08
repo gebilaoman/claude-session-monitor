@@ -55,5 +55,7 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: code/dist/*
+          files: |
+            code/dist/*
+            install.sh
           generate_release_notes: true

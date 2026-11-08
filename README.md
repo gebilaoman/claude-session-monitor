@@ -23,6 +23,14 @@ brew tap gebilaoman/tap
 brew install cstop
 ```
 
+### 一键脚本(macOS / Linux)
+
+自动识别平台,下载最新版并校验 sha256,安装到 `~/.local/bin`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/gebilaoman/claude-session-monitor/main/install.sh | sh
+```
+
 ### 直接下载
 
 从 [Releases](https://github.com/gebilaoman/claude-session-monitor/releases) 下载对应平台产物,解压后将 `cstop` 放入 PATH:
