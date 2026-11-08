@@ -184,3 +184,17 @@ func TestDetailWithFixture(t *testing.T) {
 		t.Fatalf("应最新在前: %v", m.detailLines)
 	}
 }
+
+func TestFitTail(t *testing.T) {
+	long := "-Users-gebilaozhongyi-Documents-work-gebilaozhongyi-electronic-pet-code-electronic-pet-miniprogram"
+	got := FitTail(long, 46)
+	if len([]rune(got)) != 46 || !strings.HasPrefix(got, "…") {
+		t.Fatalf("应截为 46 runes 且以 … 开头: %q", got)
+	}
+	if !strings.Contains(got, "electronic-pet-miniprogram") {
+		t.Fatalf("末段(区分信息)必须保留: %q", got)
+	}
+	if FitTail("short", 46) != "short" {
+		t.Error("短串不应截断")
+	}
+}

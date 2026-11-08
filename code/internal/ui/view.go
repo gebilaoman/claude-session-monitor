@@ -125,7 +125,7 @@ func (m Model) tableBody() string {
 			pr := m.projects[i]
 			sz := markCell(fmt.Sprintf("%10s", HumanBytes(pr.Bytes)), MB(pr.Bytes), m.cfg.WarnDiskProjectMB)
 			line := fmt.Sprintf("  %-46s %4s %s  %s",
-				Fit(pr.Name, 46), sessionsCell(pr), sz,
+				FitTail(strings.TrimPrefix(pr.Name, m.namePrefix), 46), sessionsCell(pr), sz,
 				pr.LastActive.Format("01-02 15:04"))
 			if i == m.cur {
 				line = styleSel.Render(line)

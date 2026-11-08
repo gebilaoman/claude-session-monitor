@@ -36,6 +36,8 @@ type Model struct {
 	detailProc  collect.Proc // 详情对应的进程
 	detailLines []string     // 最近活动(最新在前)
 
+	namePrefix string // 项目 slug 的 home 前缀(展示时剥离)
+
 	procErrs  []string
 	diskErrs  []string
 	errStreak int // 进程采集连续失败次数;>=3 时状态栏报错
@@ -51,7 +53,12 @@ func New(cfg config.Config, root string, selfPID int) Model {
 	if cfg.RefreshDiskSec < 1 {
 		cfg.RefreshDiskSec = 1
 	}
-	return Model{cfg: cfg, root: root, selfPID: selfPID}
+	// 项目 slug 都以 home 路径的 slug 开头;展示时剥离该公共前缀。
+	prefix := ""
+	if home := filepath.Dir(filepath.Dir(root)); home != "/" && home != "." {
+		prefix = collect.SlugFromPath(home) + "-"
+	}
+	return Model{cfg: cfg, root: root, selfPID: selfPID, namePrefix: prefix}
 }
 
 type procsMsg struct {

@@ -46,5 +46,15 @@ func Fit(s string, max int) string {
 	return string(r[:max-1]) + "…"
 }
 
+// FitTail 截断过长显示名,保留末段(前缀以 … 开头)。
+// 项目 slug 共享长前缀,区分信息在末段。
+func FitTail(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return "…" + string(r[len(r)-max+1:])
+}
+
 // MB 字节数转 MB。
 func MB(b int64) int { return int(b / 1024 / 1024) }

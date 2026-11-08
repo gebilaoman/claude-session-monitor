@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -75,10 +76,10 @@ func main() {
 
 	started := time.Now()
 	snap := collect.Collect(os.Getpid(), root)
-	printDump(cfg, snap, warnings, started)
+	printDump(cfg, snap, root, warnings, started)
 }
 
-func printDump(cfg config.Config, snap collect.Snapshot, configWarnings []string, started time.Time) {
+func printDump(cfg config.Config, snap collect.Snapshot, root string, configWarnings []string, started time.Time) {
 	out := os.Stdout
 	fmt.Fprintf(out, "cstop %s · 采集耗时 %dms\n\n", version, time.Since(started).Milliseconds())
 
@@ -105,6 +106,10 @@ func printDump(cfg config.Config, snap collect.Snapshot, configWarnings []string
 	fmt.Fprintf(out, "磁盘 %d 项(项目 %d),合计 %s%s\n",
 		len(snap.Projects), projectCount(snap.Projects), ui.HumanBytes(snap.TotalDisk), totalMark)
 	if len(snap.Projects) > 0 {
+		namePrefix := ""
+		if home := filepath.Dir(filepath.Dir(root)); home != "/" && home != "." {
+			namePrefix = collect.SlugFromPath(home) + "-"
+		}
 		fmt.Fprintf(out, "  %-46s %4s %10s  %s\n", "项目", "会话", "占用", "最近活动")
 		for _, pr := range snap.Projects {
 			sess := fmt.Sprintf("%d", pr.Sessions)
@@ -112,7 +117,7 @@ func printDump(cfg config.Config, snap collect.Snapshot, configWarnings []string
 				sess = "-"
 			}
 			fmt.Fprintf(out, "  %-46s %4s %10s  %s\n",
-				ui.Fit(pr.Name, 46), sess,
+				ui.FitTail(strings.TrimPrefix(pr.Name, namePrefix), 46), sess,
 				ui.HumanBytes(pr.Bytes)+warn(ui.MB(pr.Bytes) > cfg.WarnDiskProjectMB),
 				pr.LastActive.Format("01-02 15:04"))
 		}
