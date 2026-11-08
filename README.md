@@ -19,8 +19,7 @@ macOS / Linux / Windows 三平台。
 ### Homebrew(推荐)
 
 ```bash
-brew tap gebilaoman/tap
-brew install cstop
+brew install gebilaoman/tap/cstop
 ```
 
 ### 一键脚本(macOS / Linux)
