@@ -44,13 +44,14 @@ jobs:
           (cd dist && sha256sum *.tar.gz *.zip > checksums.txt)
           ls -la dist
 
-      # 发布后自检: 下载本平台产物并校验 checksum(设计文档 7)。
+      # 发布后自检: 校验 checksum 并试运行本平台产物(解压到独立目录,避免混入上传)。
       - name: Verify release assets
         working-directory: code/dist
         run: |
           sha256sum --check checksums.txt
-          tar -xzf cstop_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz
-          ./cstop --version
+          mkdir -p ../verify
+          tar -xzf cstop_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz -C ../verify
+          ../verify/cstop --version
 
       - uses: softprops/action-gh-release@v2
         with:
