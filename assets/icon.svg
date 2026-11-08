@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="cstop logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0C1830"/>
+      <stop offset="1" stop-color="#132647"/>
+    </linearGradient>
+    <linearGradient id="pulse" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#4ADE80"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 圆角底板 -->
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#bg)" stroke="#1E3A5F" stroke-width="3"/>
+
+  <!-- 终端窗红黄绿点 -->
+  <circle cx="92"  cy="92"  r="11" fill="#FF5F57"/>
+  <circle cx="136" cy="92"  r="11" fill="#FEBC2E"/>
+  <circle cx="180" cy="92"  r="11" fill="#28C840"/>
+
+  <!-- 提示符 ❯ -->
+  <path d="M104 168 L184 226 L104 284"
+        fill="none" stroke="#22D3EE" stroke-width="30"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- 光标块 ▮ -->
+  <rect x="222" y="254" width="96" height="30" rx="8" fill="#E2E8F0"/>
+
+  <!-- 心电脉冲线 -->
+  <path d="M84 372 H196 L232 302 L276 424 L314 348 L338 372 H428"
+        fill="none" stroke="url(#pulse)" stroke-width="18"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
