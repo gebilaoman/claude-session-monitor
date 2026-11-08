@@ -40,7 +40,7 @@ func (m Model) mainView() string {
 	head := m.statusLine()
 	tabs := m.tabsLine()
 	body := m.tableBody()
-	foot := "q 退出 · 1/2 切换 tab · ↑↓ 滚动 · r 立即刷新 · Enter 详情"
+	foot := "q 退出 · 1/2 或 ←→ 切换 tab · ↑↓ 滚动 · r 立即刷新 · Enter 详情"
 	if m.errStreak >= 3 {
 		foot = styleErr.Render("进程采集连续失败 "+strconv.Itoa(m.errStreak)+" 次,显示旧数据") + " · " + foot
 	}
@@ -72,12 +72,12 @@ func (m Model) statusLine() string {
 			break
 		}
 	}
-	head := styleTitle.Render("cstop") + " · " + sess + " · " + mem
+	head := styleTitle.Render("cstop") + " " + styleDim.Render(m.version) + " · " + sess + " · " + mem
 	if anyOver {
 		head += " " + styleOver.Render("⚠")
 	}
 	if m.updateAvailable != "" {
-		head += "  " + styleWarn.Render("新版本 v"+strings.TrimPrefix(m.updateAvailable, "v")+" 可用,按 u 更新")
+		head += "  " + styleWarn.Render("新版本 "+m.updateAvailable+" 可用,按 u 更新")
 	}
 	return head + "  " + styleDim.Render(fmt.Sprintf("(%ds 刷新 · %s)",
 		m.cfg.RefreshProcsSec, m.updated.Format("15:04:05")))

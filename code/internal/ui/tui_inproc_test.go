@@ -12,7 +12,7 @@ import (
 
 // 进程内验证事件循环: q 键应让程序正常退出。
 func TestProgramQuitsOnQ(t *testing.T) {
-	m := New(config.Default(), "/tmp/definitely-not-exist", 1)
+	m := New(config.Default(), "/tmp/definitely-not-exist", 1, "0.9.9")
 	p := tea.NewProgram(m,
 		tea.WithInput(strings.NewReader("q")),
 		tea.WithoutRenderer(),

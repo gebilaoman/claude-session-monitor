@@ -2,6 +2,7 @@
 package ui
 
 import (
+	"context"
 	"path/filepath"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 
 	"cstop/internal/collect"
 	"cstop/internal/config"
+	"cstop/internal/update"
 )
 
 const (
@@ -21,6 +23,7 @@ type Model struct {
 	cfg     config.Config
 	root    string
 	selfPID int
+	version string
 
 	tab      int // tabProcs / tabDisk
 	cur      int // 当前行(或详情页滚动行)
@@ -48,13 +51,8 @@ type Model struct {
 	updated time.Time
 }
 
-// UpdateMsg 启动检测的结果,由 main 异步注入。
-type UpdateMsg struct {
-	Version string // 新版本号;检测失败为 ""
-}
-
-// New 装配 TUI。刷新间隔下限 1 秒。
-func New(cfg config.Config, root string, selfPID int) Model {
+// New 装配 TUI。刷新间隔下限 1 秒;version 为构建注入版本号(dev 时跳过更新检测)。
+func New(cfg config.Config, root string, selfPID int, version string) Model {
 	if cfg.RefreshProcsSec < 1 {
 		cfg.RefreshProcsSec = 1
 	}
@@ -66,7 +64,7 @@ func New(cfg config.Config, root string, selfPID int) Model {
 	if home := filepath.Dir(filepath.Dir(root)); home != "/" && home != "." {
 		prefix = collect.SlugFromPath(home) + "-"
 	}
-	return Model{cfg: cfg, root: root, selfPID: selfPID, namePrefix: prefix}
+	return Model{cfg: cfg, root: root, selfPID: selfPID, version: version, namePrefix: prefix}
 }
 
 type procsMsg struct {
@@ -82,7 +80,40 @@ type diskMsg struct {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(procsTickNow(m.selfPID, m.root), diskTickNow(m.root))
+	cmds := []tea.Cmd{procsTickNow(m.selfPID, m.root), diskTickNow(m.root)}
+	if m.checkUpdates() {
+		cmds = append(cmds, updateCheckCmd(m.version), recheckUpdateCmd())
+	}
+	return tea.Batch(cmds...)
+}
+
+// checkUpdates 是否启用新版本检测: 非本地构建且配置允许。
+func (m Model) checkUpdates() bool {
+	return m.version != "" && m.version != "dev" && m.cfg.UpdateCheckOnStart
+}
+
+// updateCheckMsg 新版本检测结果;latest 空串为无新版(或检测失败,静默)。
+type updateCheckMsg struct{ latest string }
+
+// updateTickMsg 6 小时重检到点。
+type updateTickMsg struct{}
+
+// updateCheckCmd 查询新版本(3 秒超时,失败静默)。
+func updateCheckCmd(version string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		available, latest, err := update.Check(ctx, version)
+		if err != nil || !available {
+			return updateCheckMsg{}
+		}
+		return updateCheckMsg{latest: latest}
+	}
+}
+
+// recheckUpdateCmd 每 6 小时重检一次(监控工具长驻,中途发版也能知道)。
+func recheckUpdateCmd() tea.Cmd {
+	return tea.Tick(6*time.Hour, func(time.Time) tea.Msg { return updateTickMsg{} })
 }
 
 func procsTickNow(selfPID int, root string) tea.Cmd {
@@ -142,9 +173,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, diskTickAfter(time.Duration(m.cfg.RefreshDiskSec)*time.Second, m.root)
 
-	case UpdateMsg:
-		if msg.Version != "" {
-			m.updateAvailable = msg.Version
+	case updateCheckMsg:
+		if msg.latest != "" {
+			m.updateAvailable = msg.latest
+		}
+
+	case updateTickMsg:
+		if m.checkUpdates() {
+			return m, tea.Batch(updateCheckCmd(m.version), recheckUpdateCmd())
 		}
 
 	case tea.KeyMsg:
@@ -173,6 +209,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "2":
 			if !m.detail {
 				m.tab, m.cur = tabDisk, 0
+			}
+		case "left":
+			if !m.detail && m.tab > tabProcs {
+				m.tab, m.cur = m.tab-1, 0
+			}
+		case "right":
+			if !m.detail && m.tab < tabDisk {
+				m.tab, m.cur = m.tab+1, 0
 			}
 		case "up":
 			if m.cur > 0 {

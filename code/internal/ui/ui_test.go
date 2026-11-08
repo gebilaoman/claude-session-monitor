@@ -37,7 +37,7 @@ func TestVisibleWindow(t *testing.T) {
 }
 
 func testModel() Model {
-	m := New(config.Default(), "/tmp/projects", 1)
+	m := New(config.Default(), "/tmp/projects", 1, "0.9.9")
 	m.width, m.height = 120, 30
 	m.updated = time.Now()
 	m.procs = []collect.Proc{
@@ -100,7 +100,7 @@ func TestViewSmoke(t *testing.T) {
 }
 
 func TestViewEmpty(t *testing.T) {
-	m := New(config.Default(), "/tmp/projects", 1)
+	m := New(config.Default(), "/tmp/projects", 1, "0.9.9")
 	m.width, m.height = 120, 30
 	v := m.View()
 	if !strings.Contains(v, "无运行中的 Claude Code 会话") {
@@ -173,7 +173,7 @@ func TestDetailWithFixture(t *testing.T) {
 		`{"type":"user","timestamp":"2026-11-08T12:01:00Z","message":{"role":"user","content":[{"type":"text","text":"q"}]}}` + "\n"
 	os.WriteFile(filepath.Join(proj, "s.jsonl"), []byte(body), 0o644)
 
-	m := New(config.Default(), root, 1)
+	m := New(config.Default(), root, 1, "0.9.9")
 	m.width, m.height = 120, 30
 	m.procs = []collect.Proc{{PID: 1, RSS: 100 << 20, ProjectDir: "/Users/x/work/zelig"}}
 	m.openDetail(m.procs[0])
@@ -196,5 +196,33 @@ func TestFitTail(t *testing.T) {
 	}
 	if FitTail("short", 46) != "short" {
 		t.Error("短串不应截断")
+	}
+}
+
+func TestArrowTabSwitch(t *testing.T) {
+	m := testModel() // 默认运行中 tab
+	right, _ := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if rm := right.(Model); rm.tab != tabDisk || rm.cur != 0 {
+		t.Errorf("→ 应切到磁盘 tab 并复位 cur,got tab=%d cur=%d", rm.tab, rm.cur)
+	}
+	// 磁盘 tab 再按 → 不应越界
+	right2, _ := right.(Model).Update(tea.KeyMsg{Type: tea.KeyRight})
+	if right2.(Model).tab != tabDisk {
+		t.Error("→ 在最后一个 tab 不应越界")
+	}
+	left, _ := right.(Model).Update(tea.KeyMsg{Type: tea.KeyLeft})
+	if left.(Model).tab != tabProcs {
+		t.Errorf("← 应回到运行中 tab,got %d", left.(Model).tab)
+	}
+	left2, _ := m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	if left2.(Model).tab != tabProcs {
+		t.Error("← 在第一个 tab 不应越界")
+	}
+}
+
+func TestVersionShown(t *testing.T) {
+	m := testModel()
+	if v := m.View(); !strings.Contains(v, "0.9.9") {
+		t.Errorf("状态栏应显示版本号 0.9.9:\n%s", v)
 	}
 }

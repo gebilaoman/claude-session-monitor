@@ -83,19 +83,7 @@ func main() {
 		for _, w := range warnings {
 			fmt.Println("配置: " + w)
 		}
-		p := tea.NewProgram(ui.New(cfg, root, os.Getpid()), tea.WithAltScreen())
-
-		// 启动时后台检测新版本(3 秒超时,失败静默),结果注入 TUI。
-		if cfg.UpdateCheckOnStart && version != "dev" {
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-				defer cancel()
-				available, latest, err := update.Check(ctx, version)
-				if err == nil && available {
-					p.Send(ui.UpdateMsg{Version: latest})
-				}
-			}()
-		}
+		p := tea.NewProgram(ui.New(cfg, root, os.Getpid(), version), tea.WithAltScreen())
 
 		final, err := p.Run()
 		if err != nil {
