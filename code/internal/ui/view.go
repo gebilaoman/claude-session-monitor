@@ -124,8 +124,8 @@ func (m Model) tableBody() string {
 		for i := start; i < end; i++ {
 			pr := m.projects[i]
 			sz := markCell(fmt.Sprintf("%10s", HumanBytes(pr.Bytes)), MB(pr.Bytes), m.cfg.WarnDiskProjectMB)
-			line := fmt.Sprintf("  %-46s %4d %s  %s",
-				Fit(pr.Name, 46), pr.Sessions, sz,
+			line := fmt.Sprintf("  %-46s %4s %s  %s",
+				Fit(pr.Name, 46), sessionsCell(pr), sz,
 				pr.LastActive.Format("01-02 15:04"))
 			if i == m.cur {
 				line = styleSel.Render(line)
@@ -197,9 +197,19 @@ func markCell(cell string, value, warnLine int) string {
 func sessionSum(ps []collect.ProjectDisk) int {
 	n := 0
 	for _, p := range ps {
-		n += p.Sessions
+		if p.Kind == "project" {
+			n += p.Sessions
+		}
 	}
 	return n
+}
+
+// sessionsCell 会话数列: 项目显示数量,其他目录/文件显示 -。
+func sessionsCell(pr collect.ProjectDisk) string {
+	if pr.Kind != "project" {
+		return "-"
+	}
+	return strconv.Itoa(pr.Sessions)
 }
 
 // visibleWindow 计算滚动窗口 [start, end): 窗口跟随 cur,保证当前行可见。

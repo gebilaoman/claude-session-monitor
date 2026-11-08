@@ -102,12 +102,17 @@ func printDump(cfg config.Config, snap collect.Snapshot, configWarnings []string
 	fmt.Fprintln(out)
 
 	totalMark := warn(ui.MB(snap.TotalDisk) > cfg.WarnDiskTotalMB)
-	fmt.Fprintf(out, "磁盘 %d 个项目,合计 %s%s\n", len(snap.Projects), ui.HumanBytes(snap.TotalDisk), totalMark)
+	fmt.Fprintf(out, "磁盘 %d 项(项目 %d),合计 %s%s\n",
+		len(snap.Projects), projectCount(snap.Projects), ui.HumanBytes(snap.TotalDisk), totalMark)
 	if len(snap.Projects) > 0 {
 		fmt.Fprintf(out, "  %-46s %4s %10s  %s\n", "项目", "会话", "占用", "最近活动")
 		for _, pr := range snap.Projects {
-			fmt.Fprintf(out, "  %-46s %4d %10s  %s\n",
-				ui.Fit(pr.Name, 46), pr.Sessions,
+			sess := fmt.Sprintf("%d", pr.Sessions)
+			if pr.Kind != "project" {
+				sess = "-"
+			}
+			fmt.Fprintf(out, "  %-46s %4s %10s  %s\n",
+				ui.Fit(pr.Name, 46), sess,
 				ui.HumanBytes(pr.Bytes)+warn(ui.MB(pr.Bytes) > cfg.WarnDiskProjectMB),
 				pr.LastActive.Format("01-02 15:04"))
 		}
@@ -127,6 +132,16 @@ func orDash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+func projectCount(ps []collect.ProjectDisk) int {
+	n := 0
+	for _, p := range ps {
+		if p.Kind == "project" {
+			n++
+		}
+	}
+	return n
 }
 
 func warn(over bool) string {

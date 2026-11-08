@@ -45,8 +45,9 @@ func testModel() Model {
 		{PID: 21721, RSS: 100 << 20, ProjectDir: "/Users/x/work/itaskid", StartedAt: time.Now().Add(-2 * time.Hour), LatestActivity: "回复 · 11:58:00"},
 	}
 	m.projects = []collect.ProjectDisk{
-		{Name: "-Users-x-work-zelig", Sessions: 42, Bytes: 476 << 20, LastActive: time.Now()},
-		{Name: "-Users-x-work-itaskid", Sessions: 17, Bytes: 80 << 20, LastActive: time.Now()},
+		{Kind: "project", Name: "-Users-x-work-zelig", Sessions: 42, Bytes: 476 << 20, LastActive: time.Now()},
+		{Kind: "project", Name: "-Users-x-work-itaskid", Sessions: 17, Bytes: 80 << 20, LastActive: time.Now()},
+		{Kind: "dir", Name: "plugins", Bytes: 552 << 20, LastActive: time.Now()},
 	}
 	m.totalDisk = 556 << 20
 	return m

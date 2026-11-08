@@ -26,6 +26,12 @@ func Collect(selfPID int, root string) Snapshot {
 	}
 }
 
+// DiskTick 扫描 Claude 全目录占用(~/.claude,含 projects 与其他一级目录)。
+// 低频: 间隔 refresh_disk_sec,结果缓存到下一次。
+func DiskTick(root string) ([]ProjectDisk, int64, []string) {
+	return ScanAll(root)
+}
+
 // ProcsTick 采集运行中进程与活动摘要。高频: 间隔 refresh_procs_sec。
 // 同项目多进程显示同一条活动摘要(项目级最新)。
 func ProcsTick(selfPID int, root string) ([]Proc, []string) {
@@ -43,11 +49,6 @@ func ProcsTick(selfPID int, root string) ([]Proc, []string) {
 	}
 	sort.Slice(procs, func(i, j int) bool { return procs[i].RSS > procs[j].RSS })
 	return procs, errs
-}
-
-// DiskTick 扫描磁盘占用。低频: 间隔 refresh_disk_sec,结果缓存到下一次。
-func DiskTick(root string) ([]ProjectDisk, int64, []string) {
-	return ScanProjects(root)
 }
 
 // SlugFromPath 把项目路径转为 projects 下的目录名: / 与 \ 都替换为 -。
