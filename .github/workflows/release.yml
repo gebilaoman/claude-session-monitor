@@ -7,8 +7,21 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS 必须原生 cgo 构建: gopsutil 取进程 cwd 走 libproc(cgo),
+          # CGO_ENABLED=0 时 Cwd 恒为空(2026-11-08 v0.1.1 实测)。
+          - runs: macos-latest
+            targets: darwin/arm64 darwin/amd64
+            cgo: "1"
+          # Linux 读 /proc 纯 Go 即可;Windows 无 cgo 依赖。保持静态交叉编译。
+          - runs: ubuntu-latest
+            targets: linux/amd64 linux/arm64 windows/amd64 windows/arm64
+            cgo: "0"
+    runs-on: ${{ matrix.runs }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -22,16 +35,21 @@ jobs:
 
       # 产物命名与 internal/update(go-selfupdate)约定一致:
       # cstop_<version>_<os>_<arch>.tar.gz(Windows 用 .zip),归档内二进制名为 cstop。
-      - name: Build all targets
+      - name: Build targets
         working-directory: code
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p dist build
-          for t in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do
+          for t in ${{ matrix.targets }}; do
             os="${t%/*}"; arch="${t#*/}"
             ext=""; [ "$os" = "windows" ] && ext=".exe"
             name="cstop_${VERSION}_${os}_${arch}"
-            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
+            CC=""
+            if [ "$os" = "darwin" ] && [ "$arch" = "amd64" ]; then
+              CC="clang -arch x86_64"   # arm64 runner 交叉出 x86_64
+            fi
+            CGO_ENABLED=${{ matrix.cgo }} GOOS="$os" GOARCH="$arch" CC="$CC" \
+              go build -mod=vendor -trimpath \
               -ldflags "-s -w -X main.version=${VERSION}" \
               -o "build/cstop${ext}" ./cmd/cstop
             if [ "$os" = "windows" ]; then
@@ -41,21 +59,42 @@ jobs:
             fi
             rm -f "build/cstop${ext}"
           done
-          (cd dist && sha256sum *.tar.gz *.zip > checksums.txt)
           ls -la dist
 
-      # 发布后自检: 校验 checksum 并试运行本平台产物(解压到独立目录,避免混入上传)。
-      - name: Verify release assets
-        working-directory: code/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.runs }}
+          path: code/dist/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-all
+          merge-multiple: true
+
+      - name: Checksums
         run: |
+          cd dist-all
+          sha256sum *.tar.gz *.zip > checksums.txt
+          cat checksums.txt
+
+      # 发布后自检: 校验 checksum 并试运行本平台产物(解压到独立目录,避免混入上传)。
+      - name: Verify
+        run: |
+          cd dist-all
           sha256sum --check checksums.txt
           mkdir -p ../verify
-          tar -xzf cstop_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz -C ../verify
+          tar -xzf "cstop_${GITHUB_REF_NAME#v}_linux_amd64.tar.gz" -C ../verify
           ../verify/cstop --version
 
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            code/dist/*
+            dist-all/*
             install.sh
           generate_release_notes: true
