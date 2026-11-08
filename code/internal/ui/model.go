@@ -2,6 +2,7 @@
 package ui
 
 import (
+	"path/filepath"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,7 +23,7 @@ type Model struct {
 	selfPID int
 
 	tab      int // tabProcs / tabDisk
-	cur      int // 当前行
+	cur      int // 当前行(或详情页滚动行)
 	width    int
 	height   int
 	quitting bool
@@ -30,6 +31,10 @@ type Model struct {
 	procs     []collect.Proc
 	projects  []collect.ProjectDisk
 	totalDisk int64
+
+	detail      bool         // 详情页打开
+	detailProc  collect.Proc // 详情对应的进程
+	detailLines []string     // 最近活动(最新在前)
 
 	procErrs  []string
 	diskErrs  []string
@@ -107,7 +112,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.procErrs = msg.errs
 			m.updated = msg.at
 		}
-		if m.tab == tabProcs && m.cur >= len(m.procs) {
+		m.refreshDetail()
+		if m.tab == tabProcs && !m.detail && m.cur >= len(m.procs) {
 			m.cur = max(0, len(m.procs)-1)
 		}
 		return m, procsTickAfter(time.Duration(m.cfg.RefreshProcsSec)*time.Second, m.selfPID, m.root)
@@ -126,10 +132,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
+		case "esc":
+			if m.detail {
+				m.detail, m.cur = false, 0
+			}
+		case "enter", "ctrl+j": // ICRNL 环境下 Enter 到达为 \n(ctrl+j)
+			if !m.detail && m.tab == tabProcs && len(m.procs) > 0 {
+				m.openDetail(m.procs[m.cur])
+			}
 		case "1":
-			m.tab, m.cur = tabProcs, 0
+			if !m.detail {
+				m.tab, m.cur = tabProcs, 0
+			}
 		case "2":
-			m.tab, m.cur = tabDisk, 0
+			if !m.detail {
+				m.tab, m.cur = tabDisk, 0
+			}
 		case "up":
 			if m.cur > 0 {
 				m.cur--
@@ -145,7 +163,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *Model) openDetail(p collect.Proc) {
+	m.detail = true
+	m.detailProc = p
+	m.detailLines = collect.ActivityHistory(m.detailProjectDir(), 20)
+	m.cur = 0
+}
+
+// refreshDetail 进程刷新后同步详情页: 进程消失则关闭,仍在则更新数据。
+func (m *Model) refreshDetail() {
+	if !m.detail {
+		return
+	}
+	for _, p := range m.procs {
+		if p.PID == m.detailProc.PID {
+			m.detailProc = p
+			m.detailLines = collect.ActivityHistory(m.detailProjectDir(), 20)
+			if m.cur >= len(m.detailLines) {
+				m.cur = max(0, len(m.detailLines)-1)
+			}
+			return
+		}
+	}
+	m.detail, m.cur = false, 0
+}
+
+// detailProjectDir 详情进程对应的 projects 子目录;无 cwd 时为 ""。
+func (m *Model) detailProjectDir() string {
+	if m.detailProc.ProjectDir == "" {
+		return ""
+	}
+	return filepath.Join(m.root, collect.SlugFromPath(m.detailProc.ProjectDir))
+}
+
 func (m Model) rowCount() int {
+	if m.detail {
+		return len(m.detailLines)
+	}
 	if m.tab == tabDisk {
 		return len(m.projects)
 	}

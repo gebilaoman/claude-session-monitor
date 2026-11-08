@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -120,5 +122,64 @@ func TestHumanBytes(t *testing.T) {
 		if got := HumanBytes(in); got != want {
 			t.Errorf("HumanBytes(%d) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+func TestThresholdLevel(t *testing.T) {
+	cases := []struct {
+		value, warnLine, want int
+	}{
+		{100, 400, 0}, // 正常
+		{400, 400, 0}, // 等于告警线不算超
+		{401, 400, 1}, // 超限
+		{600, 400, 1}, // 恰好 1.5 倍不算红
+		{601, 400, 2}, // 超 1.5 倍
+		{999, 0, 0},   // 告警线 0 视为未配置
+	}
+	for _, c := range cases {
+		if got := thresholdLevel(c.value, c.warnLine); got != c.want {
+			t.Errorf("thresholdLevel(%d, %d) = %d, want %d", c.value, c.warnLine, got, c.want)
+		}
+	}
+}
+
+func TestDetailOpenClose(t *testing.T) {
+	m := testModel()
+
+	up, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	dm := up.(Model)
+	if !dm.detail {
+		t.Fatal("Enter 应打开详情页")
+	}
+	v := dm.View()
+	for _, want := range []string{"会话 1423", "/Users/x/work/zelig", "Esc 返回", "无活动记录"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("详情页应包含 %q:\n%s", want, v)
+		}
+	}
+
+	up2, _ := dm.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if up2.(Model).detail {
+		t.Fatal("Esc 应关闭详情页")
+	}
+}
+
+func TestDetailWithFixture(t *testing.T) {
+	root := t.TempDir()
+	proj := filepath.Join(root, "-Users-x-work-zelig")
+	os.MkdirAll(proj, 0o755)
+	body := `{"type":"assistant","timestamp":"2026-11-08T12:00:00Z","message":{"role":"assistant","content":[{"type":"tool_use","name":"Bash","input":{}}]}}` + "\n" +
+		`{"type":"user","timestamp":"2026-11-08T12:01:00Z","message":{"role":"user","content":[{"type":"text","text":"q"}]}}` + "\n"
+	os.WriteFile(filepath.Join(proj, "s.jsonl"), []byte(body), 0o644)
+
+	m := New(config.Default(), root, 1)
+	m.width, m.height = 120, 30
+	m.procs = []collect.Proc{{PID: 1, RSS: 100 << 20, ProjectDir: "/Users/x/work/zelig"}}
+	m.openDetail(m.procs[0])
+	if len(m.detailLines) != 2 {
+		t.Fatalf("应解析出 2 条活动,got %d: %v", len(m.detailLines), m.detailLines)
+	}
+	if !strings.Contains(m.detailLines[0], "用户") || !strings.Contains(m.detailLines[1], "Bash") {
+		t.Fatalf("应最新在前: %v", m.detailLines)
 	}
 }

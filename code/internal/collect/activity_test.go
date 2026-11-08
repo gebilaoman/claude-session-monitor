@@ -3,6 +3,7 @@ package collect
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -108,5 +109,34 @@ func TestActivityOfProjectEmpty(t *testing.T) {
 	}
 	if got := ActivityOfProject(filepath.Join(dir, "nope")); got != "" {
 		t.Fatalf("目录不存在应返回空串,got %q", got)
+	}
+}
+
+func TestActivityHistory(t *testing.T) {
+	dir := t.TempDir()
+	mk := func(ts, act string) string {
+		return `{"type":"assistant","timestamp":"2026-11-08T` + ts + `Z","message":{"role":"assistant","content":[{"type":"text","text":"x"}]}}`
+	}
+	lines := []string{
+		`{"type":"api-request","timestamp":"2026-11-08T11:59:00Z"}`,
+		mk("12:00:00", ""),
+		mk("12:01:00", ""),
+		`{"type":"api-request","timestamp":"2026-11-08T12:01:30Z"}`,
+		mk("12:02:00", ""),
+		mk("12:03:00", ""),
+		mk("12:04:00", ""),
+	}
+	os.WriteFile(filepath.Join(dir, "s.jsonl"), []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+
+	got := ActivityHistory(dir, 3)
+	if len(got) != 3 {
+		t.Fatalf("limit 3 应返回 3 条,got %d: %v", len(got), got)
+	}
+	if !strings.Contains(got[0], localHM("2026-11-08T12:04:00Z")) ||
+		!strings.Contains(got[2], localHM("2026-11-08T12:02:00Z")) {
+		t.Fatalf("应最新在前且跳过元数据行: %v", got)
+	}
+	if got := ActivityHistory(dir, 20); len(got) != 5 {
+		t.Fatalf("limit 20 应返回全部 5 条对话,got %d", len(got))
 	}
 }

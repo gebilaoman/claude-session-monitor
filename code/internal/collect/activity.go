@@ -9,32 +9,49 @@ import (
 	"time"
 )
 
-const activityTailBytes = 64 * 1024
+const (
+	summaryTailBytes = 64 * 1024  // 单条摘要(高频轮询)
+	historyTailBytes = 512 * 1024 // 详情页 20 条(单行可达数十 KB)
+)
 
 // ActivityOfProject 返回项目最新主会话的最近动作摘要,例: "Bash · 12:03:41"。
 // 无主会话或无可解析对话行时返回 ""。
 // 末尾若干行为元数据(api-request 等)时,向前回溯至最近一条对话记录。
 func ActivityOfProject(projectDir string) string {
+	lines := activityHistory(projectDir, 1, summaryTailBytes)
+	if len(lines) == 0 {
+		return ""
+	}
+	return lines[0]
+}
+
+// ActivityHistory 返回项目最新主会话最近 limit 条对话摘要,最新在前(详情页用)。
+func ActivityHistory(projectDir string, limit int) []string {
+	return activityHistory(projectDir, limit, historyTailBytes)
+}
+
+func activityHistory(projectDir string, limit int, tail int64) []string {
 	name, _, err := mainsOf(projectDir)
 	if err != nil || name == "" {
-		return ""
+		return nil
 	}
 	f, err := os.Open(filepath.Join(projectDir, name))
 	if err != nil {
-		return ""
+		return nil
 	}
 	defer f.Close()
-	lines := strings.Split(string(tailBytes(f, activityTailBytes)), "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
+	lines := strings.Split(string(tailBytes(f, tail)), "\n")
+	var out []string
+	for i := len(lines) - 1; i >= 0 && len(out) < limit; i-- {
 		line := strings.TrimSpace(lines[i])
 		if line == "" {
 			continue
 		}
 		if s, ok := summarizeLine([]byte(line)); ok {
-			return s
+			out = append(out, s)
 		}
 	}
-	return ""
+	return out
 }
 
 // mainsOf 统计项目顶层主会话: 返回最新的 jsonl 文件名与总数。
